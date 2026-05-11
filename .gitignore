@@ -18,6 +18,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Claude Code per-user settings (CLAUDE.md and .claude/CLAUDE.md are tracked)
+.claude/settings.local.json
+
 # Beads dolt-managed data files (issues.jsonl is the source of truth)
 .beads/*.db
 .beads/*.db-journal
