@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "pss_production_card",
+  "project_id": "3f6fb830-11c1-45d4-8274-4e3fcd6e1aef"
+}
