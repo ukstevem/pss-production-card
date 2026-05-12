@@ -6,7 +6,11 @@
     "dev": "next dev -p 3014",
     "build": "next build",
     "start": "next start -p 3014",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:wps": "tsx scripts/import-wps.ts",
+    "seed:ops": "tsx scripts/seed-op-library.ts",
+    "seed:routing": "tsx scripts/seed-routing-templates.ts",
+    "seed:all": "npm run seed:ops && npm run seed:routing && npm run import:wps"
   },
   "dependencies": {
     "@platform/auth": "file:./packages/auth",
@@ -22,9 +26,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16",
     "eslint": "^9",
     "eslint-config-next": "16.1.0",
     "tailwindcss": "^4",
+    "tsx": "^4",
     "typescript": "^5"
   }
 }

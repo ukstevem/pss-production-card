@@ -29,6 +29,9 @@ create table if not exists welding_wps (
   preheat                  text,
   charpy_test              text,
   range_of_qualification   jsonb       not null default '{}'::jsonb,
+  -- Extra structured fields from v3 register (current/volts/polarity/heat-input/PWHT/NDT/WPQR/approver/issue-date etc.)
+  -- Kept as jsonb so the register can evolve without schema churn.
+  attributes               jsonb       not null default '{}'::jsonb,
   pdf_doc_id               uuid,                                  -- → document_incoming_scan(id) when WPS PDF filed
   active                   boolean     not null default true,
   notes                    text,
