@@ -1,0 +1,46 @@
+# Local development stack — builds the image on the host (amd64 / whatever
+# the local Docker Desktop runs as), exposes the app on port 3014, and
+# does NOT join the shared platform_net network. For Pi deployment use
+# docker-compose.app.yml instead.
+#
+# Usage:
+#   1. Put SUPABASE_* (and optional DOC_*, KIOSK_*) vars in `.env` at the
+#      repo root (compose auto-loads it). At minimum:
+#        SUPABASE_URL=https://<project>.supabase.co
+#        SUPABASE_SERVICE_ROLE_KEY=eyJ...
+#        NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+#        NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+#      Easiest: `cp ../platform-portal/.env .env`.
+#   2. `docker compose -f docker-compose.local.yml up --build`
+#   3. Open http://localhost:3014/production-card/
+
+services:
+  production-card:
+    build:
+      context: ./app
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_DOC_SERVICE_URL: ${NEXT_PUBLIC_DOC_SERVICE_URL:-http://localhost:3000}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3014}
+    container_name: production-card
+    restart: unless-stopped
+    environment:
+      PORT: 3014
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3014}
+      NEXT_PUBLIC_DOC_SERVICE_URL: ${NEXT_PUBLIC_DOC_SERVICE_URL:-http://localhost:3000}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SECRET_KEY:-}}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-${SUPABASE_SERVICE_ROLE_KEY:-}}
+      DOC_SERVICE_API_KEY: ${DOC_SERVICE_API_KEY:-}
+      KIOSK_HMAC_SECRET: ${KIOSK_HMAC_SECRET:-localdev-not-secret}
+    ports:
+      - "3014:3014"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3014/production-card/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
