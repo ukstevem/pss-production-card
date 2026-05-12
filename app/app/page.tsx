@@ -55,7 +55,7 @@ export default async function Home() {
     <div className="p-8">
       <PageHeader title="Production Cards">
         <Link
-          href="/production-card/new/"
+          href="/new/"
           className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
         >
           New card
@@ -87,7 +87,7 @@ export default async function Home() {
                   <tr key={c.id} className="hover:bg-zinc-50">
                     <td className="px-4 py-3 font-mono text-xs">
                       <Link
-                        href={`/production-card/${c.id}/`}
+                        href={`/${c.id}/`}
                         className="font-medium text-blue-700 hover:underline"
                       >
                         {c.doc_number ?? `draft · ${c.id.slice(0, 8)}`}

@@ -13,6 +13,29 @@ type Item = {
   exc_class: number | null;
 };
 
+type ActiveProject = {
+  projectnumber: string;
+  client_id: string | null;
+};
+
+async function fetchActiveProjects(): Promise<ActiveProject[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("project_register")
+    .select("projectnumber, client_id, status")
+    .eq("status", "active")
+    .order("projectnumber", { ascending: false });
+
+  if (error) {
+    console.error("[new-card] fetchActiveProjects failed:", error);
+    return [];
+  }
+  return (data ?? []).map((r) => ({
+    projectnumber: r.projectnumber,
+    client_id: r.client_id ?? null,
+  }));
+}
+
 async function fetchItems(projectnumber: string): Promise<Item[]> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
@@ -35,30 +58,33 @@ export default async function NewCardPage({
 }) {
   const params = await searchParams;
   const projectnumber = params.project?.trim() ?? "";
-  const items = projectnumber ? await fetchItems(projectnumber) : [];
+  const [activeProjects, items] = await Promise.all([
+    fetchActiveProjects(),
+    projectnumber ? fetchItems(projectnumber) : Promise.resolve([] as Item[]),
+  ]);
 
   return (
     <div className="p-8 max-w-3xl">
-      <PageHeader title="New Production Card" backHref="/production-card/" />
+      <PageHeader title="New Production Card" backHref="/" />
 
-      <form
-        method="get"
-        action="/production-card/new/"
-        className="mb-8 flex items-end gap-3"
-      >
+      <form method="get" className="mb-8 flex items-end gap-3">
         <label className="flex-1">
           <span className="block text-sm font-medium text-zinc-700 mb-1">
-            Project number
+            Active project ({activeProjects.length})
           </span>
-          <input
-            type="text"
+          <select
             name="project"
             defaultValue={projectnumber}
-            placeholder="e.g. 10358"
             required
-            pattern="\d+"
             className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-900 focus:outline-none"
-          />
+          >
+            <option value="">— pick a project —</option>
+            {activeProjects.map((p) => (
+              <option key={p.projectnumber} value={p.projectnumber}>
+                {p.projectnumber} · {p.client_id ?? "(no client)"}
+              </option>
+            ))}
+          </select>
         </label>
         <button
           type="submit"
@@ -128,7 +154,7 @@ export default async function NewCardPage({
 
           <div className="flex justify-end gap-3">
             <Link
-              href="/production-card/"
+              href="/"
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-50"
             >
               Cancel

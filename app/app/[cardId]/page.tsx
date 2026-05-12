@@ -76,7 +76,7 @@ export default async function CardDetailPage({
     <div className="p-8 max-w-5xl">
       <PageHeader
         title={docNumber ?? `Draft card · ${cardId.slice(0, 8)}`}
-        backHref="/production-card/"
+        backHref="/"
       >
         {isDraft && (
           <form action={deleteCard.bind(null, cardId)}>
@@ -144,12 +144,20 @@ export default async function CardDetailPage({
                   <td className="px-3 py-3 text-zinc-600">{p.material_spec ?? "—"}</td>
                   <td className="px-3 py-3 text-zinc-600">{p.state}</td>
                   <td className="px-3 py-3">
-                    <Link
-                      href={`/production-card/${cardId}/parts/${p.id}/routing/`}
-                      className="text-xs text-blue-700 hover:underline"
-                    >
-                      Edit routing →
-                    </Link>
+                    <div className="flex gap-2 text-xs">
+                      <Link
+                        href={`/${cardId}/parts/${p.id}/`}
+                        className="text-blue-700 hover:underline"
+                      >
+                        Edit
+                      </Link>
+                      <Link
+                        href={`/${cardId}/parts/${p.id}/routing/`}
+                        className="text-blue-700 hover:underline"
+                      >
+                        Routing →
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}

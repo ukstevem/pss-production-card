@@ -39,5 +39,5 @@ export async function createCard(formData: FormData) {
     throw new Error(`Card create failed: ${cardErr?.message ?? "no row returned"}`);
   }
 
-  redirect(`/production-card/${card.id}/`);
+  redirect(`/${card.id}/`);
 }

@@ -37,7 +37,7 @@ export async function addPart(cardId: string, formData: FormData) {
   });
   if (error) throw new Error(`addPart failed: ${error.message}`);
 
-  revalidatePath(`/production-card/${cardId}/`);
+  revalidatePath(`/${cardId}/`);
 }
 
 export async function deleteCard(cardId: string) {
@@ -56,5 +56,5 @@ export async function deleteCard(cardId: string) {
   const { error } = await supabase.from("production_card").delete().eq("id", cardId);
   if (error) throw new Error(`deleteCard failed: ${error.message}`);
 
-  redirect(`/production-card/`);
+  redirect(`/`);
 }

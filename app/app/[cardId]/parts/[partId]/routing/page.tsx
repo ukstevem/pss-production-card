@@ -112,7 +112,7 @@ export default async function RoutingPage({
     <div className="p-8 max-w-5xl">
       <PageHeader
         title={`Routing — ${part.drawing_number ?? `part ${part.seq}`}`}
-        backHref={`/production-card/${cardId}/`}
+        backHref={`/${cardId}/`}
       />
 
       <dl className="mb-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-5">

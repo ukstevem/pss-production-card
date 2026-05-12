@@ -13,8 +13,8 @@ async function getOpLibrary() {
 }
 
 async function revalidate(cardId: string, partId: string) {
-  revalidatePath(`/production-card/${cardId}/parts/${partId}/routing/`);
-  revalidatePath(`/production-card/${cardId}/`);
+  revalidatePath(`/${cardId}/parts/${partId}/routing/`);
+  revalidatePath(`/${cardId}/`);
 }
 
 export async function applyTemplate(cardId: string, partId: string, templateId: string) {
@@ -131,8 +131,9 @@ export async function moveOp(cardId: string, opId: string, direction: "up" | "do
     return; // already at end
   }
 
-  // Swap seq via a temporary -1 to avoid the unique (card_part_id, seq) constraint.
-  const tmp = -1 * (target.seq + 1);
+  // Swap seq via a high positive temp value (column has `check (seq >= 0)`,
+  // so negative temps fail). 30000 is well above any reasonable per-part op count.
+  const tmp = 30000;
   const upd1 = await supabase.from("production_card_part_op").update({ seq: tmp }).eq("id", target.id);
   if (upd1.error) throw new Error(`move step 1 failed: ${upd1.error.message}`);
   const upd2 = await supabase.from("production_card_part_op").update({ seq: target.seq }).eq("id", sibling.id);
