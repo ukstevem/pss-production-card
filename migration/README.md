@@ -7,11 +7,14 @@ Numbered SQL files. Run in order in the Supabase SQL editor against the producti
 | # | File | What it does |
 |---|---|---|
 | 001 | `existing_table_columns.sql` | Adds `employees.role` + `employees.auth_user_id`; adds `project_register_items.exc_class` |
-| 002 | `welding_registers.sql` | `welding_wps`, `welding_welder_qualification` |
+| 002 | `welding_registers.sql` | `welding_wps`, `welding_welder_qualification` (canonical home moves to pss-welding-control 2026-05-17 per ADR-0006; file kept as historical) |
 | 003 | `production_registers.sql` | `production_op_library`, `production_routing_template`, `production_routing_template_op` |
 | 004 | `production_card.sql` | `production_card`, `production_card_part`, `production_card_part_op` (the card + parts + ops) |
 | 005 | `production_card_events_and_sessions.sql` | `production_card_event` (append-only) + `production_card_op_session` view |
 | 006 | `production_card_inspections_and_signoffs.sql` | `production_card_inspection`, `production_card_signoff` |
+| 007 | `doc_id_fks.sql` | Adds doc_id FK declarations (deferred from earlier files) |
+| 008 | `part_drawings_and_pos.sql` | Junction tables: `production_card_part_drawing`, `production_card_part_po` |
+| 009 | `subcard_and_inspection_register.sql` | Subcard identity + inspection register + close model (ADR-0003, ADR-0005, b5t, 3wk consolidated) |
 
 ## Assumptions
 
