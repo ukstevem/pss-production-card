@@ -47,9 +47,9 @@ Phase 3+ (placeholders today, free-text in MVP):
 
 ### Tracking model
 
-- **Granularity**: Hybrid. Card-level QR on cover sheet; part-level QR on each part row. App resolves the op implicitly from operator role + part state.
+- **Granularity**: A **card** decomposes into one or more **subcards** — one per primary drawing (`production_card_part` rows). Each subcard prints its own cover sheet with a **subcard QR** encoding `{card.doc_number}/{primary_drawing.doc_number}`. No QR on physical pieces. Physical pieces (when `qty > 1`) marked with **paint-pen serials** (001, 002, …) per subcard, captured retrospectively at session-stop. (See `docs/adr/0003-subcard-identity-and-piece-serials.md`.)
 - **Concurrency**: One open session per operator across the whole shop. Scanning a new thing auto-closes any prior. Same-part re-scan = stop.
-- **Op resolution at scan-in**: `employees.role` filters routing → take the next pending op whose `required_role` matches on this part. If exactly one → start (zero clicks). If multiple → 1-tap pick. Otherwise reject (no eligible op).
+- **Op resolution at scan-in**: Operator scans subcard QR → `employees.role` filters routing on that subcard → kiosk presents eligible ops for 1-tap pick. The serial picker is the second tap, at session-stop (operator declares which paint-pen serials they completed; for weld ops also per-piece heat). Otherwise reject (no eligible op for this role).
 - **Shift-end**: existing `pss-employee-presence` clock-out cascades to close any open production-card sessions for that employee.
 
 ### Routing
@@ -79,7 +79,7 @@ Phase 3+ (placeholders today, free-text in MVP):
 
 - Per-part `material_spec` (free text) plus optional FK to `purchase_orders` or `document_matl_cert` — captured at planning, not scan time.
 - Consumable **heat** scanned at every `weld` op (mandatory pre-flight).
-- Sub-pieces hand-marked until scribe machine is in place.
+- Pieces (when `qty > 1`) hand-marked with paint pen per subcard at the start of routing. Operator declares completed serials at session-stop via the kiosk's touch-grid **serial picker** — persisted as text breadcrumbs in `production_card_event.meta` jsonb (per-piece, with optional per-piece welding heat for weld ops). Future: scribe machine for pre-allocated serials.
 
 ### Card lifecycle
 
@@ -92,10 +92,19 @@ draft
                                                                             └─[inspector signs]→ complete
                                                                                                   └─[qc closes]→ closed (immutable)
 draft → cancelled
+
+issued | in_progress | awaiting_final_inspection → superseded
+  (when a replacement card is issued; predecessor's superseded_by_card_id
+   points forward; any open sessions auto-close; event log preserved)
 ```
 
 - **Dual e-signoff** at issue: Planner *and* QC must press accept. Replaces the red "APPROVED FOR PRODUCTION" stamp.
-- **Segregation of duties**: same person cannot operate and accept the same op. Same person cannot issue and final-inspect the same card.
+- **Segregation of duties** — four rules:
+  - **R1** — `production_card.issued_by` ≠ `closed_by` (issuer ≠ closer) — **DB CHECK**
+  - **R2** — `production_card_inspection.inspector_employee_id` (op-scope rows) ≠ any `production_card_event.employee_id` on the same op (operator ≠ acceptor) — **app layer (cross-table)**
+  - **R3** — `production_card.issued_by` ≠ `qc_signed_by` (dual issue requires 2 people) — **DB CHECK**
+  - **R4** — `production_card.closed_by` ≠ any `production_card_inspection.inspector_employee_id` where `card_id = this.id` (closer ≠ final-inspector) — **app layer (cross-table)**
+- **Close is a two-actor model**: after all required final inspections sign `pass`, card → `complete`. The QC then reviews paperwork + clicks close → `closed`. The closer's paperwork-review IS the close action; no separate paperwork-inspector role.
 - **Closed = immutable**: only an NCR or formal amendment can change records after close.
 
 ### Numbering — IEC 61355 via doc service
@@ -105,7 +114,8 @@ draft → cancelled
 - Description ID `66` (MANUFACTURING INSTRUCTIONS) for shop cards, `67` (INSTALLATION INSTRUCTIONS) for site cards
 - Single serial pool per project across shop+site variants
 - Number minted by `pss-document-service` via `mint_iso_doc_serial` RPC on issue
-- Card revisions: internal `card_rev` integer field (1, 2, 3…); refile PDF with `-r2` suffix per `pss-document-service` migration `014_refile_override`
+- **No card revisions.** When a card must change after issue, the planner creates a **new card** with a fresh doc-service number. The predecessor's `superseded_by_card_id` points to the replacement and its state moves to `superseded`. `card_rev` column is vestigial — to be dropped. The doc-service `refile_override` path is unused for cards.
+- **Two docs per card lifecycle** (per ADR-0005): at issue, mint and file the as-planned PDF → `production_card.issued_doc_id`. At close, mint a NEW doc with the same `iso_description_id` and file the as-built PDF → `production_card.closed_doc_id`. Both immutable in doc-service. Same DCC pool, sequential numbering.
 - Old `PF-2a` / `PF-3a` suffixes (EXC class smuggled into doc code) abandoned. EXC class is a project attribute, not a doc-code attribute.
 
 ### Roles
@@ -126,9 +136,10 @@ draft → cancelled
 
 ### Kiosk
 
-- Hardware: existing M5Stack with RFID module + barcode scanner unit
-- Events table `production_card_events` — separate from `timecard_events` (presence). Reuses `employee_cards` for operator lookup.
-- Firmware lives in `firmware/` in this repo, mirroring the `pss-employee-presence/firmware/roll-call/` pattern.
+- **Hardware: Raspberry Pi 4 + 7" capacitive touchscreen** in a wall-mount enclosure. USB barcode scanner + USB RFID reader (both present as keyboards via HID profile). No firmware. (See `docs/adr/0004-kiosk-pi-web-app.md`.)
+- **Same Next.js app** as the planner UI, locked to a `/kiosk` route in browser kiosk mode (Chromium `--kiosk`). Same Docker pipeline, same Supabase, same auth model.
+- Events table `production_card_event` — separate from `timecard_events` (presence). Reuses `employee_cards` for RFID lookup.
+- Touch-friendly layouts; physical input not assumed. The serial picker at session-stop is the primary touch-heavy surface.
 - Auth: LAN-only endpoint with HMAC-signed POSTs; secret in `KIOSK_HMAC_SECRET`.
 
 ### Site (deferred — same process for now)
@@ -158,24 +169,31 @@ employees                         (existing — pss-employee-presence)
 
 production_card                  -- a card is scoped to exactly one project_register_items row (one sub-project)
   ├── id (uuid)
-  ├── doc_id (uuid → document_incoming_scan.id)         -- doc_number resolved via JOIN
-  ├── project_register_item_id (uuid → project_register_items.id)  -- projectnumber + item_seq via JOIN
+  ├── issued_doc_id (uuid → document_incoming_scan.id)  -- as-planned PDF; populated at issue
+  ├── closed_doc_id (uuid → document_incoming_scan.id)  -- as-built PDF; populated at close (ADR-0005)
+  ├── project_register_item_id (uuid → project_register_items.id)
   ├── variant ('shop' | 'site')
   ├── exc_class (smallint, denormalised at issue from project_register_items)
-  ├── card_rev (int, default 1)
-  ├── state (text, enum)
+  ├── state (text, enum incl. 'superseded')
   ├── issued_by (uuid → employees), issued_at, qc_signed_by, qc_signed_at
-  ├── closed_by, closed_at
-  └── superseded_by_card_id (self-FK, rev chain)
+  ├── closed_by, closed_at                              -- 2-actor close: closer ≠ any final-inspector (R4 app-layer)
+  ├── required_final_inspections (text[])               -- codes from production_inspection_type register
+  ├── ndt_coverage_percent (smallint, 1..100; null when no NDT required)
+  └── superseded_by_card_id (self-FK; non-null when state='superseded')
+  -- card_rev column dropped; replacement = new card via supersede chain
+  -- paperwork_signed_by/_at: NOT added (2-actor close model — closer's review IS the close)
 
-production_card_part
+production_card_part             -- a "subcard"; one per primary drawing on the card
   ├── id, card_id
-  ├── drawing_number, drawing_rev, description, qty, weight
+  ├── primary_drawing_doc_id (FK → document_incoming_scan.id; mandatory at issue)
+  ├── description, qty, weight
   ├── material_spec (text)
   ├── material_doc_id (FK → document_matl_cert nullable)
   ├── material_po_id (FK → purchase_orders nullable)
   └── state
   -- no project_register_item_id, no exc_class — both inherited from card
+  -- drawing_number/drawing_rev text columns dropped (FK is source of truth;
+  --   title-block number is read live from doc-service for display)
 
 production_card_part_op
   ├── id, card_part_id, seq
@@ -198,13 +216,20 @@ production_card_op_session              (view, derived from production_card_even
   └── started_at, stopped_at, duration
 
 production_card_inspection
-  ├── id, card_part_op_id (nullable — also card-level for final)
+  ├── id, card_id (nullable), card_part_op_id (nullable)  -- exactly one is set
+  ├── inspection_type (text, nullable)  -- required for card-level final; NULL for hold-point ops
+  │                                       -- codes from production_inspection_type register
   ├── inspector_employee_id
   ├── result ('pass' | 'fail' | 'rework')
   ├── level_iso5817 (text, nullable)
   ├── defects (jsonb)         -- structured if EXC ≥ 3
   ├── photo_ids (jsonb)       -- doc service references
   └── signed_at
+
+production_inspection_type    -- register; seeded with 6 codes for EXC ≤ 2 MVP
+  ├── code (PK; e.g. 'geometric','weld_visual','weld_mpi','weld_dpi','cosmetic','client_specific')
+  ├── label, category, description
+  └── created_at, updated_at
 
 production_card_signoff
   ├── id, card_id, role, type ('issue' | 'hold' | 'close')
@@ -237,7 +262,7 @@ Issues filed in beads (see `bd ready`). Summary:
 4. Web: project picker → card draft → parts → routing
 5. Web: dual e-signoff issue flow → mint 61355 number → generate + file traveller PDF
 6. Web: WPS register CRUD; welder qualifications CRUD
-7. Kiosk firmware: RFID + QR scan → POST event with HMAC; pre-flight welder qual + WPS match for weld ops
+7. Kiosk web app (`/kiosk` route on Pi + 7" touchscreen): RFID + subcard QR scan → POST event with HMAC; weld pre-flight (welder qual + WPS match); retrospective serial picker at session-stop (per-piece + per-heat)
 8. Auto-close logic on shift-end clock-out (reactive to `timecard_events`)
 9. Web: lightweight inspections (pass/fail/signer) + final inspection + close
 
