@@ -5,6 +5,7 @@ import type { CardListRow } from "@/lib/types";
 
 const STATE_LABEL: Record<string, { label: string; tone: string }> = {
   draft: { label: "Draft", tone: "bg-zinc-200 text-zinc-800" },
+  submitted_for_qc: { label: "Submitted for QC", tone: "bg-yellow-100 text-yellow-800" },
   issued: { label: "Issued", tone: "bg-blue-100 text-blue-800" },
   in_progress: { label: "In Progress", tone: "bg-amber-100 text-amber-800" },
   on_hold: { label: "On Hold", tone: "bg-red-100 text-red-800" },
@@ -12,6 +13,7 @@ const STATE_LABEL: Record<string, { label: string; tone: string }> = {
   complete: { label: "Complete", tone: "bg-green-100 text-green-800" },
   closed: { label: "Closed", tone: "bg-zinc-300 text-zinc-900" },
   cancelled: { label: "Cancelled", tone: "bg-zinc-200 text-zinc-500 line-through" },
+  superseded: { label: "Superseded", tone: "bg-zinc-200 text-zinc-500 line-through" },
 };
 
 export const dynamic = "force-dynamic";
@@ -21,11 +23,13 @@ async function fetchCards(): Promise<CardListRow[]> {
   const { data, error } = await supabase
     .from("production_card")
     .select(
-      `id, doc_id, project_register_item_id, variant, exc_class, card_rev, state,
+      `id, issued_doc_id, closed_doc_id, project_register_item_id, variant, exc_class, state,
+       required_final_inspections, ndt_coverage_percent,
        issued_by, issued_at, qc_signed_by, qc_signed_at, closed_by, closed_at,
        superseded_by_card_id, notes, created_at, updated_at,
        project_register_items!inner(projectnumber, item_seq, line_desc),
-       document_incoming_scan(doc_number)`
+       issued_doc:document_incoming_scan!issued_doc_id(doc_number),
+       closed_doc:document_incoming_scan!closed_doc_id(doc_number)`
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -36,14 +40,26 @@ async function fetchCards(): Promise<CardListRow[]> {
   }
 
   return (data ?? []).map((r) => {
-    const pri = (r as { project_register_items?: { projectnumber: string; item_seq: number; line_desc: string | null } }).project_register_items;
-    const dis = (r as { document_incoming_scan?: { doc_number: string | null } | null }).document_incoming_scan;
+    const row = r as unknown as {
+      project_register_items?:
+        | { projectnumber: string; item_seq: number; line_desc: string | null }
+        | { projectnumber: string; item_seq: number; line_desc: string | null }[]
+        | null;
+      issued_doc?: { doc_number: string | null } | { doc_number: string | null }[] | null;
+      closed_doc?: { doc_number: string | null } | { doc_number: string | null }[] | null;
+    };
+    const pri = Array.isArray(row.project_register_items)
+      ? row.project_register_items[0]
+      : row.project_register_items;
+    const issued = Array.isArray(row.issued_doc) ? row.issued_doc[0] : row.issued_doc;
+    const closed = Array.isArray(row.closed_doc) ? row.closed_doc[0] : row.closed_doc;
     return {
       ...(r as object),
       projectnumber: pri?.projectnumber ?? "",
       item_seq: pri?.item_seq ?? 0,
       line_desc: pri?.line_desc ?? null,
-      doc_number: dis?.doc_number ?? null,
+      issued_doc_number: issued?.doc_number ?? null,
+      closed_doc_number: closed?.doc_number ?? null,
     } as CardListRow;
   });
 }
@@ -90,11 +106,8 @@ export default async function Home() {
                         href={`/${c.id}/`}
                         className="font-medium text-blue-700 hover:underline"
                       >
-                        {c.doc_number ?? `draft · ${c.id.slice(0, 8)}`}
+                        {c.issued_doc_number ?? `draft · ${c.id.slice(0, 8)}`}
                       </Link>
-                      {c.card_rev > 1 && (
-                        <span className="ml-1 text-zinc-500">r{c.card_rev}</span>
-                      )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">
                       {c.projectnumber}-{String(c.item_seq).padStart(2, "0")}

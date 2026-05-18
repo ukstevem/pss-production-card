@@ -2,24 +2,28 @@
 
 export type CardState =
   | "draft"
+  | "submitted_for_qc"
   | "issued"
   | "in_progress"
   | "on_hold"
   | "awaiting_final_inspection"
   | "complete"
   | "closed"
-  | "cancelled";
+  | "cancelled"
+  | "superseded";
 
 export type CardVariant = "shop" | "site";
 
 export type ProductionCard = {
   id: string;
-  doc_id: string | null;
+  issued_doc_id: string | null;          // as-planned PDF; populated at issue
+  closed_doc_id: string | null;          // as-built PDF; populated at close (ADR-0005)
   project_register_item_id: string;
   variant: CardVariant;
   exc_class: number | null;
-  card_rev: number;
   state: CardState;
+  required_final_inspections: string[];  // codes from production_inspection_type
+  ndt_coverage_percent: number | null;   // 1..100; required when weld_mpi or weld_dpi in required_final_inspections
   issued_by: string | null;
   issued_at: string | null;
   qc_signed_by: string | null;
@@ -44,7 +48,8 @@ export type CardListRow = ProductionCard & {
   projectnumber: string;
   item_seq: number;
   line_desc: string | null;
-  doc_number: string | null;
+  issued_doc_number: string | null;
+  closed_doc_number: string | null;
 };
 
 export type PartState =
@@ -59,8 +64,7 @@ export type ProductionCardPart = {
   id: string;
   card_id: string;
   seq: number;
-  drawing_number: string | null;
-  drawing_rev: string | null;
+  primary_drawing_doc_id: string | null; // FK → document_incoming_scan(id); mandatory at issue
   description: string | null;
   qty: number;
   weight: number | null;
@@ -91,6 +95,14 @@ export type ProductionCardPartOp = {
   planned_duration_minutes: number | null;
   notes: string | null;
 };
+
+export type InspectionType =
+  | "geometric"
+  | "weld_visual"
+  | "weld_mpi"
+  | "weld_dpi"
+  | "cosmetic"
+  | "client_specific";
 
 export type OpLibraryRow = {
   code: string;

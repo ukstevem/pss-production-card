@@ -5,8 +5,6 @@ import { redirect } from "next/navigation";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 
 export async function addPart(cardId: string, formData: FormData) {
-  const drawing_number = String(formData.get("drawing_number") ?? "").trim() || null;
-  const drawing_rev = String(formData.get("drawing_rev") ?? "").trim() || null;
   const description = String(formData.get("description") ?? "").trim() || null;
   const material_spec = String(formData.get("material_spec") ?? "").trim() || null;
   const qty = Math.max(1, parseInt(String(formData.get("qty") ?? "1"), 10) || 1);
@@ -25,11 +23,11 @@ export async function addPart(cardId: string, formData: FormData) {
   if (seqErr) throw new Error(`seq lookup failed: ${seqErr.message}`);
   const nextSeq = (existing?.[0]?.seq ?? 0) + 1;
 
+  // Primary drawing is linked on the part detail page after creation.
+  // App-layer enforces non-null primary_drawing_doc_id at card issue (see b5t).
   const { error } = await supabase.from("production_card_part").insert({
     card_id: cardId,
     seq: nextSeq,
-    drawing_number,
-    drawing_rev,
     description,
     qty,
     weight,

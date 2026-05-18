@@ -20,8 +20,7 @@ type PartDetail = {
   id: string;
   card_id: string;
   seq: number;
-  drawing_number: string | null;
-  drawing_rev: string | null;
+  primary_drawing_doc_id: string | null;
   description: string | null;
   qty: number;
   weight: number | null;
@@ -56,7 +55,7 @@ async function fetchPart(partId: string): Promise<PartDetail | null> {
   const { data } = await supabase
     .from("production_card_part")
     .select(
-      "id, card_id, seq, drawing_number, drawing_rev, description, qty, weight, material_spec, state"
+      "id, card_id, seq, primary_drawing_doc_id, description, qty, weight, material_spec, state"
     )
     .eq("id", partId)
     .maybeSingle();
@@ -149,7 +148,7 @@ export default async function PartDetailPage({
   return (
     <div className="p-8 max-w-5xl space-y-8">
       <PageHeader
-        title={`Part ${part.seq} — ${part.drawing_number ?? "(no drawing)"}`}
+        title={`Part ${part.seq} — ${part.description ?? "(no description)"}`}
         backHref={`/${cardId}/`}
       >
         <Link
@@ -165,11 +164,9 @@ export default async function PartDetailPage({
         <h2 className="mb-3 text-sm font-medium text-zinc-700">Part details</h2>
         {isDraft ? (
           <form action={updatePart.bind(null, cardId, partId)} className="grid grid-cols-2 gap-3 md:grid-cols-6">
-            <Input label="Drawing number" name="drawing_number" defaultValue={part.drawing_number ?? ""} colSpan={2} />
-            <Input label="Rev" name="drawing_rev" defaultValue={part.drawing_rev ?? ""} />
+            <Input label="Description" name="description" defaultValue={part.description ?? ""} colSpan={3} />
             <Input label="Qty" name="qty" type="number" min={1} defaultValue={String(part.qty)} required />
             <Input label="Weight (kg)" name="weight" type="number" step="0.01" defaultValue={part.weight != null ? String(part.weight) : ""} />
-            <Input label="Description" name="description" defaultValue={part.description ?? ""} colSpan={3} />
             <Input label="Material spec" name="material_spec" defaultValue={part.material_spec ?? ""} colSpan={3} />
             <div className="col-span-2 md:col-span-6 flex justify-end">
               <button type="submit" className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700">
@@ -179,11 +176,9 @@ export default async function PartDetailPage({
           </form>
         ) : (
           <dl className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-            <Field label="Drawing">{part.drawing_number ?? "—"}</Field>
-            <Field label="Rev">{part.drawing_rev ?? "—"}</Field>
+            <Field label="Description" wide>{part.description ?? "—"}</Field>
             <Field label="Qty">{part.qty}</Field>
             <Field label="Weight">{part.weight ?? "—"}</Field>
-            <Field label="Description" wide>{part.description ?? "—"}</Field>
             <Field label="Material spec" wide>{part.material_spec ?? "—"}</Field>
           </dl>
         )}

@@ -13,8 +13,6 @@ async function revalidate(cardId: string, partId: string) {
 }
 
 export async function updatePart(cardId: string, partId: string, formData: FormData) {
-  const drawing_number = (formData.get("drawing_number") as string)?.trim() || null;
-  const drawing_rev = (formData.get("drawing_rev") as string)?.trim() || null;
   const description = (formData.get("description") as string)?.trim() || null;
   const material_spec = (formData.get("material_spec") as string)?.trim() || null;
   const qty = Math.max(1, parseInt((formData.get("qty") as string) ?? "1", 10) || 1);
@@ -24,7 +22,7 @@ export async function updatePart(cardId: string, partId: string, formData: FormD
   const supabase = getSupabaseAdmin();
   const { error } = await supabase
     .from("production_card_part")
-    .update({ drawing_number, drawing_rev, description, qty, weight, material_spec })
+    .update({ description, qty, weight, material_spec })
     .eq("id", partId);
   if (error) throw new Error(`updatePart failed: ${error.message}`);
 

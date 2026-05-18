@@ -3,6 +3,7 @@ node_modules/
 .next/
 dist/
 out/
+*.tsbuildinfo
 
 # Env — secrets never get committed
 .env

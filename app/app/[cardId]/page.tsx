@@ -9,10 +9,10 @@ export const dynamic = "force-dynamic";
 
 type CardWithJoins = {
   id: string;
-  doc_id: string | null;
+  issued_doc_id: string | null;
+  closed_doc_id: string | null;
   variant: "shop" | "site";
   exc_class: number | null;
-  card_rev: number;
   state: string;
   notes: string | null;
   created_at: string;
@@ -22,7 +22,8 @@ type CardWithJoins = {
     item_seq: number;
     line_desc: string | null;
   } | null;
-  document_incoming_scan: { doc_number: string | null } | null;
+  issued_doc: { doc_number: string | null } | null;
+  closed_doc: { doc_number: string | null } | null;
 };
 
 async function fetchCard(cardId: string) {
@@ -30,9 +31,10 @@ async function fetchCard(cardId: string) {
   const { data, error } = await supabase
     .from("production_card")
     .select(
-      `id, doc_id, variant, exc_class, card_rev, state, notes, created_at, updated_at,
+      `id, issued_doc_id, closed_doc_id, variant, exc_class, state, notes, created_at, updated_at,
        project_register_items!inner(projectnumber, item_seq, line_desc),
-       document_incoming_scan(doc_number)`
+       issued_doc:document_incoming_scan!issued_doc_id(doc_number),
+       closed_doc:document_incoming_scan!closed_doc_id(doc_number)`
     )
     .eq("id", cardId)
     .maybeSingle();
@@ -46,7 +48,7 @@ async function fetchParts(cardId: string): Promise<ProductionCardPart[]> {
   const { data, error } = await supabase
     .from("production_card_part")
     .select(
-      "id, card_id, seq, drawing_number, drawing_rev, description, qty, weight, material_spec, material_doc_id, material_po_id, state, notes"
+      "id, card_id, seq, primary_drawing_doc_id, description, qty, weight, material_spec, material_doc_id, material_po_id, state, notes"
     )
     .eq("card_id", cardId)
     .order("seq", { ascending: true });
@@ -69,7 +71,7 @@ export default async function CardDetailPage({
 
   const parts = await fetchParts(cardId);
   const pri = card.project_register_items;
-  const docNumber = card.document_incoming_scan?.doc_number ?? null;
+  const docNumber = card.issued_doc?.doc_number ?? null;
   const isDraft = card.state === "draft";
 
   return (
@@ -97,7 +99,6 @@ export default async function CardDetailPage({
         <Field label="Variant" className="capitalize">{card.variant}</Field>
         <Field label="EXC class">{card.exc_class ?? "—"}</Field>
         <Field label="State">{card.state}</Field>
-        <Field label="Card revision">{card.card_rev}</Field>
         <Field label="Created">
           {new Date(card.created_at).toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}
         </Field>
@@ -122,12 +123,11 @@ export default async function CardDetailPage({
             <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
               <tr>
                 <th className="px-3 py-2">#</th>
-                <th className="px-3 py-2">Drawing</th>
-                <th className="px-3 py-2">Rev</th>
                 <th className="px-3 py-2">Description</th>
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Weight</th>
                 <th className="px-3 py-2">Material</th>
+                <th className="px-3 py-2">Drawing</th>
                 <th className="px-3 py-2">State</th>
                 <th className="px-3 py-2">Routing</th>
               </tr>
@@ -136,12 +136,13 @@ export default async function CardDetailPage({
               {parts.map((p) => (
                 <tr key={p.id} className="hover:bg-zinc-50">
                   <td className="px-3 py-3 font-mono text-xs">{p.seq}</td>
-                  <td className="px-3 py-3 font-mono text-xs">{p.drawing_number ?? "—"}</td>
-                  <td className="px-3 py-3 text-xs text-zinc-600">{p.drawing_rev ?? "—"}</td>
                   <td className="px-3 py-3 text-zinc-700">{p.description ?? "—"}</td>
                   <td className="px-3 py-3">{p.qty}</td>
                   <td className="px-3 py-3 text-zinc-600">{p.weight ?? "—"}</td>
                   <td className="px-3 py-3 text-zinc-600">{p.material_spec ?? "—"}</td>
+                  <td className="px-3 py-3 text-xs text-zinc-600">
+                    {p.primary_drawing_doc_id ? "✓" : <span className="text-amber-700">none</span>}
+                  </td>
                   <td className="px-3 py-3 text-zinc-600">{p.state}</td>
                   <td className="px-3 py-3">
                     <div className="flex gap-2 text-xs">
@@ -169,14 +170,13 @@ export default async function CardDetailPage({
       {isDraft && (
         <form action={addPart.bind(null, cardId)} className="rounded-lg border border-zinc-200 p-4">
           <h3 className="mb-3 text-sm font-medium text-zinc-700">Add part</h3>
+          <p className="mb-3 text-xs text-zinc-500">
+            Drawing is linked on the part detail page after the part is added. At issue time every part must have a primary drawing.
+          </p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-            <label className="col-span-2 md:col-span-2">
-              <span className="block text-xs text-zinc-600 mb-1">Drawing number</span>
-              <input name="drawing_number" className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm" />
-            </label>
-            <label>
-              <span className="block text-xs text-zinc-600 mb-1">Rev</span>
-              <input name="drawing_rev" className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm" />
+            <label className="col-span-2 md:col-span-3">
+              <span className="block text-xs text-zinc-600 mb-1">Description</span>
+              <input name="description" className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm" />
             </label>
             <label>
               <span className="block text-xs text-zinc-600 mb-1">Qty</span>
@@ -185,10 +185,6 @@ export default async function CardDetailPage({
             <label>
               <span className="block text-xs text-zinc-600 mb-1">Weight (kg)</span>
               <input name="weight" type="number" step="0.01" min={0} className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm" />
-            </label>
-            <label className="col-span-2 md:col-span-3">
-              <span className="block text-xs text-zinc-600 mb-1">Description</span>
-              <input name="description" className="w-full rounded border border-zinc-300 px-2 py-1.5 text-sm" />
             </label>
             <label className="col-span-2 md:col-span-3">
               <span className="block text-xs text-zinc-600 mb-1">Material spec</span>

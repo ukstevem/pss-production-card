@@ -24,7 +24,7 @@ async function fetchPart(partId: string): Promise<ProductionCardPart | null> {
   const { data, error } = await supabase
     .from("production_card_part")
     .select(
-      "id, card_id, seq, drawing_number, drawing_rev, description, qty, weight, material_spec, material_doc_id, material_po_id, state, notes"
+      "id, card_id, seq, primary_drawing_doc_id, description, qty, weight, material_spec, material_doc_id, material_po_id, state, notes"
     )
     .eq("id", partId)
     .maybeSingle();
@@ -111,13 +111,13 @@ export default async function RoutingPage({
   return (
     <div className="p-8 max-w-5xl">
       <PageHeader
-        title={`Routing — ${part.drawing_number ?? `part ${part.seq}`}`}
+        title={`Routing — ${part.description ?? `part ${part.seq}`}`}
         backHref={`/${cardId}/`}
       />
 
       <dl className="mb-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-5">
         <Field label="Part #">{part.seq}</Field>
-        <Field label="Drawing rev">{part.drawing_rev ?? "—"}</Field>
+        <Field label="Description">{part.description ?? "—"}</Field>
         <Field label="Qty">{part.qty}</Field>
         <Field label="Material">{part.material_spec ?? "—"}</Field>
         <Field label="State">{part.state}</Field>
