@@ -99,10 +99,10 @@ rather than a remodel. The shape follows the stage2 sidecar in
 | `status` | `weld_status` | `detected` or `undetected`. `excluded` is never exported. |
 | `source` | `weld_source` | `detected` or `manual` |
 | `location` | `weld_location` | `shop` or `site` |
-| `Pset_FastenerWeld.Type1` | `weld_method` | Only when known; see §7 on vocabulary |
-| `Pset_PSS_WeldGeometry.MeasuredLengthMm` | `weld_length_mm` × `weld_length_factor` | The reviewer's length correction applied |
-| `Pset_PSS_WeldGeometry.DetectedLengthMm` | `weld_length_mm` | |
-| `Pset_PSS_WeldGeometry.Size` | `weld_size` | Ratified free text; see §7 |
+| `PSS_WeldGeometry.DetectionMethod` | `weld_method` | How the joint was found: `coplanar` (1,807 live rows) or `t-joint` (1,046) on 2026-09-14, `manual` for reviewer-added welds. Not an ISO 2553 seam type, so never `Pset_FastenerWeld.Type1` |
+| `PSS_WeldGeometry.MeasuredLengthMm` | `weld_length_mm` × `weld_length_factor` | The reviewer's length correction applied |
+| `PSS_WeldGeometry.DetectedLengthMm` | `weld_length_mm` | |
+| `PSS_WeldGeometry.Size` | `weld_size` | Ratified free text; see §7 |
 | WPS reference (`IfcClassificationReference`) | `weld_procedure` | Should equal a pss-welding-control `wps_no` |
 | `Representation` | `weld_paths` | Polylines |
 
@@ -110,6 +110,10 @@ rather than a remodel. The shape follows the stage2 sidecar in
 
 - **Emit only what is known.** A missing property means "not specified yet". A null would claim it
   had been specified as nothing.
+- **`Pset_` is reserved.** Names starting `Pset_` belong to property sets the IFC standard defines,
+  so our own set is `PSS_WeldGeometry` (it was `Pset_PSS_WeldGeometry` until 2026-09-14).
+- **No empty property sets.** IFC requires at least one property in a set, so `Pset_FastenerWeld` is
+  left out of a weld until something in it has been specified.
 - **Measured length never goes in IFC's `l`.** `l` is the length of one weld element, so a total
   length there would misstate any intermittent weld. It goes in the PSS Pset instead.
 - **Excluded welds are left out.** Undetected welds, which a reviewer ratified but detection no longer
@@ -141,6 +145,7 @@ These are engineering decisions that come from the WPS and the card, not from ge
 
 | Not in the Weld Map | Comes from |
 |---|---|
+| Seam type (ISO 2553, IFC `Type1`) | Nowhere yet; see §7 |
 | Welding process (ISO 4063) | `welding_wps.process` |
 | Welding position | `welding_wps.position`, but see §7 |
 | Throat or leg, unless ratified | The reviewer, through `weld_size` |
@@ -154,9 +159,11 @@ These are engineering decisions that come from the WPS and the card, not from ge
 1. **Throat or leg.** Stage3's `weld_size` is free text covering "leg / throat". Expected Minutes needs
    the throat, and ISO 2553 keeps them apart (`a` is throat, `z` is leg). Should stage3 store them as
    separate fields?
-2. **Joint-type vocabulary.** Stage3's methods are `coplanar`, `t-joint` and `manual`. The WPS
-   register's `joint_type` is descriptive text such as "Single Sided Fillet Weld". Neither is an
-   ISO 2553 seam type. Map them, or leave `Type1` empty?
+2. **Seam type.** Decided 2026-09-14 (stage2 bd `nlk`): stage3's `weld_method` records how a joint
+   was detected (`coplanar`, `t-joint`, `manual`), which is not an ISO 2553 seam type, so it is
+   exported as `PSS_WeldGeometry.DetectionMethod` and `Type1` stays empty. Still open: where a seam
+   type should come from - a reviewer field in stage3, or the WPS register's `joint_type`, which is
+   descriptive text such as "Single Sided Fillet Weld" rather than an ISO 2553 symbol.
 3. **Which revision.** `revision` and `doc_ref` are null on every live stage3 model, so an export can't
    say which drawing revision it reflects. Should they be recorded at ingest?
 4. **Controlled document.** A weld map is an EN 1090 record. Should each export be filed in
